@@ -2,7 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { MessageSquareQuote } from 'lucide-react';
 import { useState } from 'react';
 import BrandMark from '@/components/brand-mark';
-import { publicNavItems } from '@/components/public/public-nav-items';
+import { publicNavGroups } from '@/components/public/public-nav-items';
 import {
     isCurrentNavItem,
     MobileNav,
@@ -39,7 +39,7 @@ export default function PublicHeader({
                     </Link>
                 </NavbarSlot>
 
-                <NavItems items={publicNavItems} />
+                <NavItems groups={publicNavGroups} />
 
                 <NavbarSlot className="shrink-0 gap-2">
                     <LanguageSwitcher />
@@ -71,34 +71,49 @@ export default function PublicHeader({
                 </MobileNavHeader>
 
                 <MobileNavMenu isOpen={menuOpen}>
-                    {publicNavItems.map((item) => {
-                        /*
-                         * Pencocokan yang sama dengan navigasi desktop: berawalan,
-                         * bukan persis. Membuka detail produk harus tetap
-                         * menyalakan "Produk" di menu mobile juga.
-                         */
-                        const isActive = isCurrentNavItem(
-                            item.href,
-                            currentUrl,
-                        );
+                    {/*
+                     * Kelompoknya diberi judul, bukan garis seperti di layar
+                     * lebar. Pada daftar menurun garis hanya terbaca sebagai
+                     * jeda; judul menyebutkan isinya.
+                     */}
+                    {publicNavGroups.map((group) => (
+                        <div key={group.name} className="mb-1 last:mb-0">
+                            <p className="px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground">
+                                {group.name}
+                            </p>
 
-                        return (
-                            <Link
-                                key={toUrl(item.href)}
-                                href={item.href}
-                                onClick={() => setMenuOpen(false)}
-                                aria-current={isActive ? 'page' : undefined}
-                                className={cn(
-                                    'rounded-full px-4 py-2.5 text-sm transition-colors',
-                                    isActive
-                                        ? 'bg-muted font-semibold text-foreground'
-                                        : 'font-medium text-muted-foreground hover:bg-muted hover:text-foreground',
-                                )}
-                            >
-                                {item.name}
-                            </Link>
-                        );
-                    })}
+                            {group.items.map((item) => {
+                                /*
+                                 * Pencocokan yang sama dengan navigasi desktop:
+                                 * berawalan, bukan persis. Membuka detail produk
+                                 * harus tetap menyalakan "Produk" di sini juga.
+                                 */
+                                const isActive = isCurrentNavItem(
+                                    item.href,
+                                    currentUrl,
+                                );
+
+                                return (
+                                    <Link
+                                        key={toUrl(item.href)}
+                                        href={item.href}
+                                        onClick={() => setMenuOpen(false)}
+                                        aria-current={
+                                            isActive ? 'page' : undefined
+                                        }
+                                        className={cn(
+                                            'block rounded-full px-4 py-2.5 text-sm transition-colors',
+                                            isActive
+                                                ? 'bg-muted font-semibold text-foreground'
+                                                : 'font-medium text-muted-foreground hover:bg-muted hover:text-foreground',
+                                        )}
+                                    >
+                                        {item.name}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    ))}
 
                     <Button asChild variant="create" className="mt-2 w-full">
                         <Link

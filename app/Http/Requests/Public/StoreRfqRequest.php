@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Public;
 
 use App\Enums\Incoterm;
+use App\Support\Countries;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -46,7 +47,13 @@ final class StoreRfqRequest extends FormRequest
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'whatsapp' => ['nullable', 'string', 'max:50'],
-            'country_code' => ['required', 'string', 'size:2', 'alpha'],
+            /*
+             * Dibatasi ke daftar yang sama dengan yang ditawarkan formulir.
+             * Sebelumnya `alpha` meloloskan dua huruf apa pun — "XX" dan "QQ"
+             * tersimpan sebagai negara tujuan, dan baru ketahuan salah saat tim
+             * sales mencoba menghitung ongkos kirim ke sana.
+             */
+            'country_code' => ['required', 'string', 'size:2', Rule::in(Countries::codes())],
             'incoterms' => ['nullable', Rule::enum(Incoterm::class)],
             'port_of_destination' => ['nullable', 'string', 'max:255'],
             'monthly_tonnage' => ['nullable', 'string', 'max:100'],
@@ -91,8 +98,9 @@ final class StoreRfqRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'country_code.size' => 'Kode negara memakai dua huruf, misalnya ID, SA, atau RU.',
-            'country_code.alpha' => 'Kode negara memakai dua huruf, misalnya ID, SA, atau RU.',
+            'country_code.required' => 'Pilih negara tujuan pengiriman.',
+            'country_code.size' => 'Negara tujuan tidak dikenali. Pilih dari daftar yang tersedia.',
+            'country_code.in' => 'Negara tujuan tidak dikenali. Pilih dari daftar yang tersedia.',
         ];
     }
 

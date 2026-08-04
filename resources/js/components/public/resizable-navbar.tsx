@@ -9,6 +9,7 @@ import {
 } from 'motion/react';
 import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
+import type { NavGroup } from '@/components/public/public-nav-items';
 import { Button } from '@/components/ui/button';
 import { cn, toUrl } from '@/lib/utils';
 
@@ -169,74 +170,100 @@ export function NavBody({
  * `domMax` — `domAnimation` tidak menyertakan animasi layout.
  */
 export function NavItems({
-    items,
+    groups,
     className,
     onItemClick,
 }: {
-    items: NavbarItem[];
+    groups: NavGroup[];
     className?: string;
     onItemClick?: () => void;
 }) {
-    const [hovered, setHovered] = useState<number | null>(null);
+    const [hovered, setHovered] = useState<string | null>(null);
     const url = usePage().url;
 
+    /*
+     * Berada di alur normal, bukan `absolute inset-0`. Terpusat pada pil
+     * membuat barisnya condong ke kanan: logo di kiri selebar ±200px, sementara
+     * pemilih bahasa dan tombol penawaran di kanan ±300px. Dengan `flex-1` ia
+     * terpusat di antara kedua kluster itu — yang memang jaraknya dilihat mata.
+     */
     return (
         <nav
             onMouseLeave={() => setHovered(null)}
             className={cn(
-                'absolute inset-0 hidden flex-1 flex-row items-center',
+                'hidden min-w-0 flex-1 flex-row items-center',
                 'justify-center gap-1 text-sm font-medium lg:flex',
                 className,
             )}
         >
-            {items.map((item, index) => {
-                const current = isCurrentNavItem(item.href, url);
+            {groups.flatMap((group, groupIndex) => {
+                const separator =
+                    groupIndex === 0
+                        ? []
+                        : [
+                              <span
+                                  key={`pemisah-${group.name}`}
+                                  aria-hidden
+                                  className="mx-2 h-5 w-px shrink-0 bg-border"
+                              />,
+                          ];
 
-                return (
-                    <Link
-                        key={toUrl(item.href)}
-                        href={item.href}
-                        onMouseEnter={() => setHovered(index)}
-                        onClick={onItemClick}
-                        aria-current={current ? 'page' : undefined}
-                        className={cn(
-                            'relative rounded-full px-4 py-2 transition-colors',
-                            'focus-visible:ring-2 focus-visible:ring-ring',
-                            'focus-visible:outline-none',
-                            current
-                                ? 'font-semibold text-foreground'
-                                : 'text-muted-foreground hover:text-foreground',
-                        )}
-                    >
-                        {/*
-                         * Halaman aktif memakai pil tetap, dan pil hover
-                         * disembunyikan di atasnya. Keduanya berbentuk dan
-                         * berwarna sama, jadi saat tetikus masuk ke item aktif
-                         * pil yang meluncur lenyap tepat di posisi pil tetap —
-                         * yang terlihat pilnya berhenti, bukan berkedip.
-                         */}
-                        {current && (
-                            <span
-                                aria-hidden
-                                className="absolute inset-0 rounded-full bg-muted"
-                            />
-                        )}
+                return [
+                    ...separator,
+                    ...group.items.map((item) => {
+                        const key = toUrl(item.href);
+                        const current = isCurrentNavItem(item.href, url);
 
-                        {hovered === index && !current && (
-                            <m.span
-                                layoutId="public-nav-hover"
-                                aria-hidden
-                                className="absolute inset-0 rounded-full bg-muted"
-                                transition={{
-                                    type: 'spring',
-                                    stiffness: 380,
-                                    damping: 32,
-                                }}
-                            />
-                        )}
-                        <span className="relative z-10">{item.name}</span>
-                    </Link>
-                );
+                        return (
+                            <Link
+                                key={key}
+                                href={item.href}
+                                onMouseEnter={() => setHovered(key)}
+                                onClick={onItemClick}
+                                aria-current={current ? 'page' : undefined}
+                                className={cn(
+                                    'relative rounded-full px-4 py-2 whitespace-nowrap transition-colors',
+                                    'focus-visible:ring-2 focus-visible:ring-ring',
+                                    'focus-visible:outline-none',
+                                    current
+                                        ? 'font-semibold text-foreground'
+                                        : 'text-muted-foreground hover:text-foreground',
+                                )}
+                            >
+                                {/*
+                                 * Halaman aktif memakai pil tetap, dan pil
+                                 * hover disembunyikan di atasnya. Keduanya
+                                 * berbentuk dan berwarna sama, jadi saat
+                                 * tetikus masuk ke item aktif pil yang meluncur
+                                 * lenyap tepat di posisi pil tetap — yang
+                                 * terlihat pilnya berhenti, bukan berkedip.
+                                 */}
+                                {current && (
+                                    <span
+                                        aria-hidden
+                                        className="absolute inset-0 rounded-full bg-muted"
+                                    />
+                                )}
+
+                                {hovered === key && !current && (
+                                    <m.span
+                                        layoutId="public-nav-hover"
+                                        aria-hidden
+                                        className="absolute inset-0 rounded-full bg-muted"
+                                        transition={{
+                                            type: 'spring',
+                                            stiffness: 380,
+                                            damping: 32,
+                                        }}
+                                    />
+                                )}
+                                <span className="relative z-10">
+                                    {item.name}
+                                </span>
+                            </Link>
+                        );
+                    }),
+                ];
             })}
         </nav>
     );
@@ -245,9 +272,8 @@ export function NavItems({
 /**
  * Pembungkus logo dan area aksi.
  *
- * `NavItems` diposisikan `absolute inset-0` supaya benar-benar terpusat, jadi
- * ia menutupi seluruh baris. `z-20` di sini yang menjaga logo dan tombol tetap
- * bisa diklik.
+ * `z-20` menjaga logo dan tombol tetap berada di atas pil hover yang meluncur
+ * di baris tautan tengah.
  */
 export function NavbarSlot({
     children,

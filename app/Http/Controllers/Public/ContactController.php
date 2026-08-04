@@ -14,7 +14,9 @@ use App\Models\Product;
 use App\Repositories\Contracts\ContainerTypeRepositoryInterface;
 use App\Repositories\Contracts\ProductRepositoryInterface;
 use App\Services\SettingService;
+use App\Support\Countries;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -44,7 +46,7 @@ final class ContactController extends Controller
         private readonly CreateRfqRequestAction $createRfq,
     ) {}
 
-    public function show(): Response
+    public function show(Request $request): Response
     {
         $locale = app()->getLocale();
 
@@ -64,6 +66,20 @@ final class ContactController extends Controller
                 ->values()
                 ->all(),
             'incoterms' => Incoterm::options(),
+            /*
+             * Namanya ikut locale aktif, jadi daftarnya dibangun di server —
+             * bukan dikirim sebagai kode lalu diterjemahkan di peramban.
+             */
+            'countries' => Countries::options($locale),
+            /*
+             * Nomor referensi permintaan yang baru terkirim. `store()` memakai
+             * `back()`, jadi pengunjung selalu mendarat kembali di sini lewat
+             * GET — nilai flash inilah satu-satunya cara nomor yang dibuat
+             * server sampai ke layar. Tanpa ini nomornya dibuat, disimpan,
+             * dikirim lewat surel pemberitahuan ke tim, lalu hilang dari
+             * hadapan orang yang paling membutuhkannya.
+             */
+            'reference' => $request->session()->get('rfq_reference'),
         ]);
     }
 
@@ -103,7 +119,9 @@ final class ContactController extends Controller
             'user_agent' => $request->userAgent(),
         ], $this->notificationRecipients());
 
-        return back()->with('success', "Permintaan Anda tercatat dengan nomor {$rfq->reference_no}. Tim kami membalas dalam 24 jam kerja.");
+        return back()
+            ->with('success', "Permintaan Anda tercatat dengan nomor {$rfq->reference_no}. Tim kami membalas dalam 24 jam kerja.")
+            ->with('rfq_reference', $rfq->reference_no);
     }
 
     private function hourlyLimit(): int

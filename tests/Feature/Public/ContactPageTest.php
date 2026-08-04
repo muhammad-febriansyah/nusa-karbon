@@ -60,6 +60,22 @@ test('permintaan penawaran tersimpan dengan nomor referensi dan status baru', fu
         ->and($rfq->reference_no)->toStartWith('RFQ-');
 });
 
+test('nomor referensi dikirim ke halaman setelah permintaan terkirim', function () {
+    Notification::fake();
+
+    $this->post(route('public.contact.store'), rfqPayload());
+
+    $reference = RfqRequest::query()->value('reference_no');
+
+    // Pengunjung mendarat kembali di formulir lewat GET; nomornya ikut sekali.
+    $this->get(route('public.contact'))
+        ->assertInertia(fn (Assert $page) => $page->where('reference', $reference));
+
+    // Flash hanya bertahan satu request — kunjungan berikutnya bersih kembali.
+    $this->get(route('public.contact'))
+        ->assertInertia(fn (Assert $page) => $page->where('reference', null));
+});
+
 test('kode negara disimpan dalam huruf besar apa pun cara pengunjung mengetiknya', function () {
     Notification::fake();
 
@@ -129,4 +145,32 @@ test('produk nonaktif tidak bisa dilampirkan ke permintaan', function () {
     ]))->assertSessionHasErrors('product_id');
 
     expect(RfqRequest::query()->count())->toBe(0);
+});
+
+test('halaman kontak mengirim daftar negara yang sudah diterjemahkan dan diurutkan', function () {
+    $this->get(route('public.contact'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            // Dua ratus lima puluh: seluruh kode ISO 3166-1 yang masih terpakai
+            // plus XK. Kode usang seperti SU dan pengelompokan seperti EU tidak
+            // pernah ikut — keduanya tampak sah di daftar tetapi bukan tujuan
+            // pengiriman yang bisa dipakai.
+            ->has('countries', 250)
+            ->where('countries.0.label', 'Afganistan')
+            ->has('countries.0.value'),
+        );
+});
+
+test('negara tujuan hanya menerima kode yang ada di daftar', function () {
+    $this->post(route('public.contact.store'), rfqPayload(['country_code' => 'XX']))
+        ->assertSessionHasErrors(['country_code']);
+
+    expect(RfqRequest::query()->count())->toBe(0);
+});
+
+test('kode negara usang ditolak meski dua huruf dan dikenal ICU', function () {
+    // `SU` (Uni Soviet) lolos aturan `alpha` lama dan tersimpan sebagai negara
+    // tujuan yang sah, padahal tidak ada kapal yang bisa berangkat ke sana.
+    $this->post(route('public.contact.store'), rfqPayload(['country_code' => 'SU']))
+        ->assertSessionHasErrors(['country_code']);
 });

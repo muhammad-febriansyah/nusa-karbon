@@ -70,16 +70,16 @@ test('faq dikelompokkan per kategori dan yang nonaktif dibuang', function () {
     $this->get(route('public.export-info'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->has('faqGroups', 2)
-            ->where('faqGroups.0.category', 'Pengiriman')
-            ->has('faqGroups.0.items', 1)
-            ->where('faqGroups.1.category', 'Pembayaran')
-            // Satu dari dua pertanyaan kategori ini nonaktif.
-            ->has('faqGroups.1.items', 1),
+            // Satu dari tiga pertanyaan nonaktif, jadi tersisa dua.
+            ->has('faqs', 2)
+            ->where('faqs.0.category', 'Pengiriman')
+            ->where('faqs.0.question', 'Berapa lama pengiriman?')
+            // Kategorinya ikut tiap baris, bukan jadi judul kelompok sendiri.
+            ->where('faqs.1.category', 'Pembayaran'),
         );
 });
 
-test('kategori yang seluruh pertanyaannya nonaktif tidak muncul sebagai grup kosong', function () {
+test('pertanyaan nonaktif tidak pernah ikut terkirim', function () {
     $kategori = FaqCategory::factory()->create([
         'is_active' => true,
         'name' => ['id' => 'Kategori Sunyi'],
@@ -89,7 +89,7 @@ test('kategori yang seluruh pertanyaannya nonaktif tidak muncul sebagai grup kos
 
     $this->get(route('public.export-info'))
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->has('faqGroups', 0));
+        ->assertInertia(fn (Assert $page) => $page->has('faqs', 0));
 });
 
 test('info ekspor tetap tampil ketika belum ada konten sama sekali', function () {
@@ -97,7 +97,7 @@ test('info ekspor tetap tampil ketika belum ada konten sama sekali', function ()
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->has('qcProtocols', 0)
-            ->has('faqGroups', 0)
+            ->has('faqs', 0)
             ->has('shippingPartners', 0),
         );
 });

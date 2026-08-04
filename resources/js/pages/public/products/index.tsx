@@ -1,10 +1,11 @@
 import { Link, router } from '@inertiajs/react';
+import FilterSelect from '@/components/public/filter-select';
+import ListToolbar from '@/components/public/list-toolbar';
 import PageHeader from '@/components/public/page-header';
 import Pagination from '@/components/public/pagination';
 import ProductCard from '@/components/public/product-card';
 import Rise from '@/components/public/rise';
 import SeoHead from '@/components/public/seo-head';
-import { Label } from '@/components/ui/label';
 import { home } from '@/routes/public';
 import products from '@/routes/public/products';
 import type { PublicProductCard } from '@/types';
@@ -33,9 +34,6 @@ const STAGGER = 0.04;
 
 /** Batas jeda supaya kartu terakhir tidak muncul jauh setelah yang pertama. */
 const MAX_DELAY = 0.32;
-
-const selectClass =
-    'h-10 w-full rounded-[var(--radius)] border border-input bg-card px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:w-auto';
 
 /**
  * Katalog produk.
@@ -98,6 +96,12 @@ export default function ProductIndex({
         });
     };
 
+    const activeName =
+        categories.find((category) => category.slug === activeCategory)?.name ??
+        'Semua produk';
+
+    const isFiltered = activeCategory !== null || activeSort !== 'urutan';
+
     return (
         <>
             <SeoHead
@@ -110,60 +114,7 @@ export default function ProductIndex({
                 title="Katalog briket arang batok kelapa"
                 breadcrumbs={[{ name: 'Beranda', href: home() }]}
                 description="Setiap produk dilengkapi ukuran, MOQ, dan data master carton — sehingga kapasitas kontainernya bisa dihitung sebelum Anda memesan."
-            >
-                <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-                    {categories.length > 0 && (
-                        <div className="space-y-2">
-                            <Label htmlFor="kategori">Kategori</Label>
-                            <select
-                                id="kategori"
-                                value={activeCategory ?? ''}
-                                onChange={(event) =>
-                                    apply({ kategori: event.target.value })
-                                }
-                                className={selectClass}
-                            >
-                                <option value="">
-                                    Semua kategori ({totalActive})
-                                </option>
-                                {categories.map((category) => (
-                                    <option
-                                        key={category.id}
-                                        value={category.slug}
-                                    >
-                                        {category.name} ({category.total})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-
-                    <div className="space-y-2">
-                        <Label htmlFor="urut">Urutkan</Label>
-                        <select
-                            id="urut"
-                            value={activeSort}
-                            onChange={(event) =>
-                                apply({ urut: event.target.value })
-                            }
-                            className={selectClass}
-                        >
-                            {sorts.map((sort) => (
-                                <option key={sort.value} value={sort.value}>
-                                    {sort.label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground sm:ms-auto sm:pb-2.5">
-                        <span className="tabular-nums">{meta.from ?? 0}</span>–
-                        <span className="tabular-nums">{meta.to ?? 0}</span>{' '}
-                        dari <span className="tabular-nums">{meta.total}</span>{' '}
-                        produk
-                    </p>
-                </div>
-            </PageHeader>
+            />
 
             <div className="mx-auto w-full max-w-7xl px-6 py-14">
                 {items.length === 0 ? (
@@ -185,7 +136,54 @@ export default function ProductIndex({
                     </p>
                 ) : (
                     <>
-                        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        <ListToolbar
+                            heading={activeName}
+                            summary={
+                                <>
+                                    Menampilkan{' '}
+                                    <span className="tabular-nums">
+                                        {meta.from ?? 0}–{meta.to ?? 0}
+                                    </span>{' '}
+                                    dari{' '}
+                                    <span className="tabular-nums">
+                                        {meta.total}
+                                    </span>{' '}
+                                    produk
+                                </>
+                            }
+                            onReset={
+                                isFiltered
+                                    ? () => apply({ kategori: '', urut: 'urutan' })
+                                    : undefined
+                            }
+                        >
+                            {categories.length > 0 && (
+                                <FilterSelect
+                                    id="kategori"
+                                    label="Kategori"
+                                    value={activeCategory ?? ''}
+                                    onChange={(kategori) => apply({ kategori })}
+                                    resetLabel={`Semua kategori (${totalActive})`}
+                                    options={categories.map((category) => ({
+                                        value: category.slug,
+                                        label: `${category.name} (${category.total})`,
+                                    }))}
+                                />
+                            )}
+
+                            <FilterSelect
+                                id="urut"
+                                label="Urutkan"
+                                value={activeSort}
+                                onChange={(urut) => apply({ urut })}
+                                options={sorts.map((sort) => ({
+                                    value: sort.value,
+                                    label: sort.label,
+                                }))}
+                            />
+                        </ListToolbar>
+
+                        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                             {items.map((product, index) => (
                                 <Rise
                                     key={product.id}

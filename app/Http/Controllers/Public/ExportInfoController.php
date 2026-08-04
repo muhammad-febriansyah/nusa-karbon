@@ -40,7 +40,7 @@ final class ExportInfoController extends Controller
             'qcProtocols' => QcProtocolResource::collection(
                 $this->qcProtocols->activeOrdered(),
             )->resolve(),
-            'faqGroups' => $this->faqGroups(),
+            'faqs' => $this->faqs(),
             'shippingPartners' => ShippingPartnerResource::collection(
                 $this->shippingPartners->activeOrdered(),
             )->resolve(),
@@ -62,37 +62,31 @@ final class ExportInfoController extends Controller
     }
 
     /**
-     * FAQ dikelompokkan per kategori.
+     * Seluruh FAQ aktif sebagai satu daftar rata, kategorinya jadi keterangan.
      *
-     * Pengelompokan dilakukan di sini, bukan di frontend, supaya urutan
-     * kategori mengikuti urutan `faq_category_id` yang sudah disusun repository
-     * — mengulangnya di React berarti dua tempat yang bisa berbeda urutan.
+     * Sebelumnya dikelompokkan per kategori dengan judul sendiri-sendiri. Basis
+     * data memuat 37 pertanyaan yang tersebar di 30 kategori, dan 24 di
+     * antaranya berisi tepat satu pertanyaan — jadi pembaca melewati satu judul
+     * untuk membaca satu jawaban, tiga puluh kali. Sebagai keterangan kecil di
+     * baris pertanyaannya, kategori itu tetap memberi tahu konteks tanpa
+     * memotong daftarnya jadi tiga puluh potongan.
      *
-     * Kategori yang seluruh pertanyaannya nonaktif tidak pernah muncul, karena
-     * yang dikelompokkan hanya FAQ yang aktif.
+     * Urutannya tetap dari repository, bukan disusun ulang di React.
      *
-     * @return list<array{category: string, items: list<array{id: int, question: string|null, answer: string|null}>}>
+     * @return list<array{id: int, category: string, question: string|null, answer: string|null}>
      */
-    private function faqGroups(): array
+    private function faqs(): array
     {
         $locale = app()->getLocale();
 
-        $groups = $this->faqs->activeWithCategory()
-            ->groupBy(fn (Faq $faq): string => $faq->category?->getTranslation('name', $locale) ?: 'Lainnya')
-            ->map(fn ($items, string $category): array => [
-                'category' => $category,
-                'items' => array_values($items
-                    ->map(fn (Faq $faq): array => [
-                        'id' => $faq->id,
-                        'question' => $this->text($faq->getTranslation('question', $locale)),
-                        'answer' => $this->text($faq->getTranslation('answer', $locale)),
-                    ])
-                    ->all()),
+        return array_values($this->faqs->activeWithCategory()
+            ->map(fn (Faq $faq): array => [
+                'id' => $faq->id,
+                'category' => $faq->category?->getTranslation('name', $locale) ?: 'Lainnya',
+                'question' => $this->text($faq->getTranslation('question', $locale)),
+                'answer' => $this->text($faq->getTranslation('answer', $locale)),
             ])
-            ->values()
-            ->all();
-
-        return array_values($groups);
+            ->all());
     }
 
     private function text(mixed $value): ?string

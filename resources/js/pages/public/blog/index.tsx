@@ -1,10 +1,11 @@
 import { Link, router } from '@inertiajs/react';
+import FilterSelect from '@/components/public/filter-select';
+import ListToolbar from '@/components/public/list-toolbar';
 import PageHeader from '@/components/public/page-header';
 import Pagination from '@/components/public/pagination';
 import PostCard from '@/components/public/post-card';
 import Rise from '@/components/public/rise';
 import SeoHead from '@/components/public/seo-head';
-import { Label } from '@/components/ui/label';
 import { home } from '@/routes/public';
 import blog from '@/routes/public/blog';
 import type { PublicPostCard } from '@/types';
@@ -40,9 +41,6 @@ const MAX_DELAY = 0.3;
  * terbaca sebagai tata letak yang gagal, bukan sebagai pilihan.
  */
 const LEAD_THRESHOLD = 4;
-
-const selectClass =
-    'h-10 w-full rounded-[var(--radius)] border border-input bg-card px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:w-auto';
 
 /**
  * Arsip blog.
@@ -113,28 +111,7 @@ export default function BlogIndex({
                 title="Catatan dari lapangan"
                 breadcrumbs={[{ name: 'Beranda', href: home() }]}
                 description="Standar mutu, dokumen ekspor, dan hal-hal teknis yang sering ditanyakan pembeli sebelum kontainer pertama."
-            >
-                {categories.length > 0 && (
-                    <div className="space-y-2">
-                        <Label htmlFor="kategori">Kategori</Label>
-                        <select
-                            id="kategori"
-                            value={activeCategory ?? ''}
-                            onChange={(event) => apply(event.target.value)}
-                            className={selectClass}
-                        >
-                            <option value="">
-                                Semua artikel ({totalPublished})
-                            </option>
-                            {categories.map((category) => (
-                                <option key={category.id} value={category.slug}>
-                                    {category.name} ({category.total})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
-            </PageHeader>
+            />
 
             <div className="mx-auto w-full max-w-7xl px-6 py-14">
                 {items.length === 0 ? (
@@ -156,23 +133,41 @@ export default function BlogIndex({
                     </p>
                 ) : (
                     <>
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border/70 pb-4">
-                            <h2 className="font-display text-xl leading-tight font-bold tracking-[-0.02em]">
-                                {activeName}
-                            </h2>
-
-                            <p className="text-sm text-muted-foreground">
-                                Menampilkan{' '}
-                                <span className="tabular-nums">
-                                    {meta.from ?? 0}–{meta.to ?? 0}
-                                </span>{' '}
-                                dari{' '}
-                                <span className="tabular-nums">
-                                    {meta.total}
-                                </span>{' '}
-                                artikel
-                            </p>
-                        </div>
+                        <ListToolbar
+                            heading={activeName}
+                            summary={
+                                <>
+                                    Menampilkan{' '}
+                                    <span className="tabular-nums">
+                                        {meta.from ?? 0}–{meta.to ?? 0}
+                                    </span>{' '}
+                                    dari{' '}
+                                    <span className="tabular-nums">
+                                        {meta.total}
+                                    </span>{' '}
+                                    artikel
+                                </>
+                            }
+                            onReset={
+                                activeCategory === null
+                                    ? undefined
+                                    : () => apply('')
+                            }
+                        >
+                            {categories.length > 0 && (
+                                <FilterSelect
+                                    id="kategori"
+                                    label="Kategori"
+                                    value={activeCategory ?? ''}
+                                    onChange={apply}
+                                    resetLabel={`Semua artikel (${totalPublished})`}
+                                    options={categories.map((category) => ({
+                                        value: category.slug,
+                                        label: `${category.name} (${category.total})`,
+                                    }))}
+                                />
+                            )}
+                        </ListToolbar>
 
                         {lead && (
                             <Rise className="mt-8 block">
