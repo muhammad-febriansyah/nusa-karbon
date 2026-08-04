@@ -2,17 +2,11 @@ import { Link } from '@inertiajs/react';
 import { MessageSquareQuote } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import Combobox from '@/components/public/combobox';
 import PageHeader from '@/components/public/page-header';
 import SeoHead from '@/components/public/seo-head';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { calculateContainerLoad } from '@/lib/container-calculator';
 import { cn } from '@/lib/utils';
 import { contact, home } from '@/routes/public';
@@ -46,7 +40,12 @@ type Props = {
     containers: CalculatorContainer[];
 };
 
-const integer = new Intl.NumberFormat('id-ID');
+/*
+ * Tanpa pecahan sama sekali. Berat kotor hasil penjumlahan tara sering
+ * berujung pada angka seperti 17.585,4 kg, dan satu desimal pada bilangan lima
+ * digit hanya menambah bising — pelayaran pun membulatkannya.
+ */
+const integer = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
 
 const decimal = new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 2,
@@ -64,42 +63,115 @@ const LIMIT_SENTENCE: Record<'weight' | 'volume', string> = {
     volume: 'Ruang habis lebih dulu — batas berat muat belum tercapai.',
 };
 
-function Figure({
-    label,
-    value,
-    unit,
-    accent = false,
-}: {
-    label: string;
-    value: string;
-    unit?: string;
-    accent?: boolean;
-}) {
+function SpecRow({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-panel border border-border/70 bg-card p-5">
+        <div className="flex items-baseline justify-between gap-4">
             <dt className="text-sm text-muted-foreground">{label}</dt>
-            <dd
-                dir="ltr"
-                className={cn(
-                    'mt-2 font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-none font-semibold tracking-[-0.02em] tabular-nums',
-                    accent && 'text-primary',
-                )}
-            >
+            <dd dir="ltr" className="font-mono text-sm tabular-nums">
                 {value}
-                {unit && (
-                    <span className="ms-1.5 text-sm font-normal text-muted-foreground">
-                        {unit}
-                    </span>
-                )}
             </dd>
         </div>
     );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+/**
+ * Satu batas kontainer beserta seberapa jauh terpakai.
+ *
+ * Menggantikan denah muat yang sebelumnya mengisi ruang paling besar di
+ * halaman ini. Denah itu diarsir sepanjang persentase muatan, padahal muatan
+ * tidak bertambah memanjang di lantai — dan pada 99% yang terlihat hanya
+ * kotak berarsir penuh tanpa satu pun angka. Dua batang ini menjawab
+ * pertanyaan yang sebenarnya: mana yang habis lebih dulu, dan berapa sisa yang
+ * satunya.
+ */
+function ConstraintBar({
+    label,
+    used,
+    limit,
+    unit,
+    format,
+    binding,
+}: {
+    label: string;
+    used: number;
+    limit: number;
+    unit: string;
+    format: (value: number) => string;
+    /** Batas inilah yang menghentikan muatan. */
+    binding: boolean;
+}) {
+    const ratio = limit <= 0 ? 0 : Math.min(used / limit, 1);
+
+    /*
+     * Dibulatkan ke bawah, bukan ke terdekat. Muatan 99,98% yang ditampilkan
+     * sebagai "100%" membuat pembeli mengira kontainernya persis penuh dan
+     * tidak ada ruang tersisa untuk sample atau dokumen.
+     */
+    const percent = Math.floor(ratio * 100);
+    const remaining = Math.max(limit - used, 0);
+
+    return (
+        <div>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span className="flex items-center gap-2 text-sm font-medium">
+                    {label}
+                    {binding && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                            batas
+                        </span>
+                    )}
+                </span>
+
+                <span dir="ltr" className="font-mono text-sm tabular-nums">
+                    {format(used)} / {format(limit)} {unit}
+                </span>
+            </div>
+
+            {/*
+             * Batangnya `aria-hidden`: angka yang diwakilinya sudah tertulis
+             * lengkap di atas dan di bawahnya, jadi membacakannya lagi hanya
+             * menambah bising di pembaca layar.
+             */}
+            <div
+                aria-hidden
+                className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-muted"
+            >
+                <div
+                    className={cn(
+                        'h-full rounded-full transition-[width] duration-500 ease-out',
+                        binding ? 'bg-primary' : 'bg-foreground/25',
+                    )}
+                    style={{ width: `${percent}%` }}
+                />
+            </div>
+
+            <p className="mt-1.5 text-xs text-muted-foreground">
+                <span dir="ltr" className="tabular-nums">
+                    {percent}%
+                </span>{' '}
+                terpakai · sisa{' '}
+                <span dir="ltr" className="tabular-nums">
+                    {format(remaining)} {unit}
+                </span>
+            </p>
+        </div>
+    );
+}
+
+function Field({
+    label,
+    htmlFor,
+    children,
+}: {
+    label: string;
+    htmlFor: string;
+    children: ReactNode;
+}) {
     return (
         <div className="space-y-2">
-            <Label className="text-sm font-medium">{label}</Label>
+            <Label htmlFor={htmlFor} className="text-sm font-medium">
+                {label}
+            </Label>
             {children}
         </div>
     );
@@ -136,13 +208,6 @@ export default function ContainerCalculator({
 
         return calculateContainerLoad(product, container);
     }, [product, container]);
-
-    /*
-     * Dibulatkan ke bawah, bukan ke terdekat. Muatan 99,98% yang ditampilkan
-     * sebagai "100%" membuat pembeli mengira kontainernya persis penuh dan tidak
-     * ada ruang tersisa untuk sample atau dokumen.
-     */
-    const percent = load === null ? 0 : Math.floor(load.utilisation * 100);
 
     const meetsMoq =
         product?.moq_kg == null || load === null
@@ -181,46 +246,45 @@ export default function ContainerCalculator({
                              */
                             onSubmit={(event) => event.preventDefault()}
                         >
-                            <Field label="Produk">
-                                <Select
-                                    value={productId}
+                            <Field label="Produk" htmlFor="produk">
+                                {/*
+                                 * Bisa dicari: daftarnya sepanjang katalog, dan
+                                 * pembeli datang membawa satu ukuran di kepala
+                                 * ketimbang menelusuri tiga puluh baris.
+                                 */}
+                                <Combobox
+                                    id="produk"
+                                    name="produk"
+                                    defaultValue={productId}
                                     onValueChange={setProductId}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Pilih produk" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {items.map((item) => (
-                                            <SelectItem
-                                                key={item.id}
-                                                value={String(item.id)}
-                                            >
-                                                {item.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    className="h-11"
+                                    placeholder="Pilih produk"
+                                    searchPlaceholder="Cari produk…"
+                                    emptyText="Produk tidak ditemukan."
+                                    options={items.map((item) => ({
+                                        value: String(item.id),
+                                        label: item.name,
+                                        hint: item.size_mm ?? undefined,
+                                    }))}
+                                />
                             </Field>
 
-                            <Field label="Jenis kontainer">
-                                <Select
-                                    value={containerId}
+                            <Field label="Jenis kontainer" htmlFor="kontainer">
+                                <Combobox
+                                    id="kontainer"
+                                    name="kontainer"
+                                    defaultValue={containerId}
                                     onValueChange={setContainerId}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Pilih kontainer" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {containers.map((item) => (
-                                            <SelectItem
-                                                key={item.id}
-                                                value={String(item.id)}
-                                            >
-                                                {item.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    className="h-11"
+                                    placeholder="Pilih kontainer"
+                                    searchPlaceholder="Cari kontainer…"
+                                    emptyText="Kontainer tidak ditemukan."
+                                    options={containers.map((item) => ({
+                                        value: String(item.id),
+                                        label: item.name,
+                                        hint: item.code,
+                                    }))}
+                                />
                             </Field>
 
                             {product && (
@@ -229,32 +293,14 @@ export default function ContainerCalculator({
                                         Master carton {product.name}
                                     </p>
 
-                                    <div className="flex items-baseline justify-between gap-4">
-                                        <dt className="text-sm text-muted-foreground">
-                                            Berat bersih
-                                        </dt>
-                                        <dd
-                                            dir="ltr"
-                                            className="font-mono text-sm tabular-nums"
-                                        >
-                                            {decimal.format(
-                                                product.master_carton_weight_kg,
-                                            )}{' '}
-                                            kg
-                                        </dd>
-                                    </div>
-
-                                    <div className="flex items-baseline justify-between gap-4">
-                                        <dt className="text-sm text-muted-foreground">
-                                            Volume
-                                        </dt>
-                                        <dd
-                                            dir="ltr"
-                                            className="font-mono text-sm tabular-nums"
-                                        >
-                                            {product.master_carton_cbm} CBM
-                                        </dd>
-                                    </div>
+                                    <SpecRow
+                                        label="Berat bersih"
+                                        value={`${decimal.format(product.master_carton_weight_kg)} kg`}
+                                    />
+                                    <SpecRow
+                                        label="Volume"
+                                        value={`${product.master_carton_cbm} CBM`}
+                                    />
 
                                     {product.slug && (
                                         <Link
@@ -266,64 +312,117 @@ export default function ContainerCalculator({
                                     )}
                                 </dl>
                             )}
+
+                            {/*
+                             * Batas kontainernya ikut ditulis. Tanpa ini,
+                             * kalimat "batas berat muat belum tercapai" tidak
+                             * bisa diperiksa sendiri oleh pembacanya — ia tahu
+                             * beratnya 16.590 kg tetapi tidak tahu terhadap apa.
+                             */}
+                            {container && (
+                                <dl className="rounded-panel space-y-3 border border-border/70 bg-card p-5">
+                                    <p className="text-sm font-medium">
+                                        Kapasitas {container.name}
+                                    </p>
+
+                                    <SpecRow
+                                        label="Batas berat"
+                                        value={`${integer.format(container.max_payload_kg)} kg`}
+                                    />
+                                    <SpecRow
+                                        label="Batas volume"
+                                        value={`${decimal.format(container.max_cbm)} CBM`}
+                                    />
+
+                                    {container.internal_length_m !== null &&
+                                        container.internal_width_m !== null && (
+                                            <SpecRow
+                                                label="Dimensi dalam"
+                                                value={`${decimal.format(container.internal_length_m)} × ${decimal.format(container.internal_width_m)} m`}
+                                            />
+                                        )}
+                                </dl>
+                            )}
                         </form>
 
                         <div>
                             {load !== null && container !== undefined && (
                                 <>
-                                    <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                                        <Figure
-                                            label="Karton"
-                                            value={integer.format(load.cartons)}
-                                            accent
-                                        />
-                                        <Figure
-                                            label="Berat bersih"
-                                            value={integer.format(
-                                                load.net_weight_kg,
-                                            )}
-                                            unit="kg"
-                                        />
-                                        <Figure
-                                            label="Volume"
-                                            value={decimal.format(
-                                                load.volume_cbm,
-                                            )}
-                                            unit={`/ ${decimal.format(container.max_cbm)}`}
-                                        />
-                                        <Figure
-                                            label="Terpakai"
-                                            value={String(percent)}
-                                            unit="%"
-                                        />
-                                    </dl>
+                                    <div className="rounded-panel border border-border/70 bg-card p-6 sm:p-8">
+                                        <p className="text-sm text-muted-foreground">
+                                            Muat dalam satu {container.name}
+                                        </p>
 
-                                    <p className="mt-5 text-base leading-relaxed text-muted-foreground">
-                                        {LIMIT_SENTENCE[load.limited_by]}
-                                    </p>
+                                        <p
+                                            dir="ltr"
+                                            className="mt-2 font-display text-[clamp(2.5rem,6vw,4rem)] leading-none font-semibold tracking-[-0.03em] text-primary tabular-nums"
+                                        >
+                                            {integer.format(load.cartons)}
+                                            <span className="ms-2.5 font-sans text-base font-normal text-muted-foreground">
+                                                karton
+                                            </span>
+                                        </p>
 
-                                    {/*
-                                     * Denah muat: rasionya mengikuti panjang dan
-                                     * lebar dalam yang sebenarnya, jadi 20FT dan
-                                     * 40FT memang terlihat berbeda panjang.
-                                     */}
-                                    <div
-                                        className="rounded-panel relative mt-8 w-full overflow-hidden border border-border/70 bg-card"
-                                        style={{
-                                            aspectRatio:
-                                                container.internal_length_m ===
-                                                    null ||
-                                                container.internal_width_m ===
-                                                    null
-                                                    ? '5.9 / 2.35'
-                                                    : `${container.internal_length_m} / ${container.internal_width_m}`,
-                                        }}
-                                    >
-                                        <div
-                                            aria-hidden
-                                            className="surface-container-fill absolute inset-y-0 start-0 border-e-2 border-primary transition-[width] duration-500 ease-out"
-                                            style={{ width: `${percent}%` }}
-                                        />
+                                        {/*
+                                         * Berat kotor ikut ditulis. Itu angka
+                                         * yang dipakai pelayaran dan batas jalan
+                                         * di pelabuhan tujuan; berat bersih saja
+                                         * membuat pembeli menghitung ulang
+                                         * sendiri dengan tara yang ia tebak.
+                                         */}
+                                        <p className="mt-3 text-sm text-muted-foreground">
+                                            <span
+                                                dir="ltr"
+                                                className="font-mono tabular-nums text-foreground"
+                                            >
+                                                {integer.format(
+                                                    load.net_weight_kg,
+                                                )}{' '}
+                                                kg
+                                            </span>{' '}
+                                            bersih ·{' '}
+                                            <span
+                                                dir="ltr"
+                                                className="font-mono tabular-nums text-foreground"
+                                            >
+                                                {integer.format(
+                                                    load.gross_weight_kg,
+                                                )}{' '}
+                                                kg
+                                            </span>{' '}
+                                            kotor
+                                        </p>
+
+                                        <div className="mt-8 space-y-5">
+                                            <ConstraintBar
+                                                label="Volume"
+                                                used={load.volume_cbm}
+                                                limit={container.max_cbm}
+                                                unit="CBM"
+                                                format={(value) =>
+                                                    decimal.format(value)
+                                                }
+                                                binding={
+                                                    load.limited_by === 'volume'
+                                                }
+                                            />
+                                            <ConstraintBar
+                                                label="Berat"
+                                                used={load.net_weight_kg}
+                                                limit={container.max_payload_kg}
+                                                unit="kg"
+                                                format={(value) =>
+                                                    integer.format(value)
+                                                }
+                                                binding={
+                                                    load.limited_by === 'weight'
+                                                }
+                                            />
+                                        </div>
+
+                                        <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
+                                            {LIMIT_SENTENCE[load.limited_by]}
+                                        </p>
                                     </div>
 
                                     {meetsMoq === false &&

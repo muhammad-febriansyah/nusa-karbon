@@ -38,6 +38,8 @@ type Props = {
     /** Tulisan saat pencarian tidak menemukan apa pun. */
     emptyText: string;
     className?: string;
+    /** Dipanggil tiap pilihan berubah, untuk pemakai yang bukan formulir. */
+    onValueChange?: (value: string) => void;
     /*
      * Disambungkan `Field` lewat `cloneElement`, jadi harus diteruskan ke
      * tombol pemicunya — bukan berhenti di sini.
@@ -67,6 +69,7 @@ export default function Combobox({
     searchPlaceholder,
     emptyText,
     className,
+    onValueChange,
     'aria-invalid': ariaInvalid,
     'aria-describedby': ariaDescribedBy,
 }: Props) {
@@ -182,6 +185,7 @@ export default function Combobox({
                                         value={`${option.label} ${option.hint ?? ''} ${option.value}`}
                                         onSelect={() => {
                                             setValue(option.value);
+                                            onValueChange?.(option.value);
                                             setOpen(false);
                                         }}
                                         className="gap-2.5 py-2"
